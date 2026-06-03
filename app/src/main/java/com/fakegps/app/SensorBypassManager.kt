@@ -16,18 +16,18 @@ object SensorBypassManager {
     fun disableWiFiScanning(context: Context) {
         try {
             Settings.Global.putInt(context.contentResolver, "wifi_scan_always_enabled", 0)
-            Log.d(TAG, "WiFi always-scanning disabled")
+            Log.d(TAG, "Pemindaian WiFi nonaktif")
         } catch (e: SecurityException) {
-            Log.e(TAG, "WRITE_SECURE_SETTINGS not granted for wifi_scan")
+            Log.e(TAG, "Izin WRITE_SECURE_SETTINGS tidak ada untuk wifi_scan")
         }
     }
 
     fun disableBLEScanning(context: Context) {
         try {
             Settings.Global.putInt(context.contentResolver, "ble_scan_always_enabled", 0)
-            Log.d(TAG, "BLE always-scanning disabled")
+            Log.d(TAG, "Pemindaian BLE nonaktif")
         } catch (e: SecurityException) {
-            Log.e(TAG, "WRITE_SECURE_SETTINGS not granted for ble_scan")
+            Log.e(TAG, "Izin WRITE_SECURE_SETTINGS tidak ada untuk ble_scan")
         }
     }
 
@@ -43,7 +43,7 @@ object SensorBypassManager {
                 "locationPackageWhitelist",
                 ""
             )
-            Log.d(TAG, "Location throttling blacklist/whitelist cleared")
+            Log.d(TAG, "Blacklist/whitelist lokasi dibersihkan")
         } catch (e: SecurityException) {
             // Best-effort
         }

@@ -1,201 +1,131 @@
-# Patching Guide — Bypass Absensi Detection on Xiaomi
+# Panduan — Bypass Deteksi Absensi di Xiaomi
 
-This project works as both a **normal app** and an **LSPosed/LSPatch module**.
-Choose your path:
-
-```
-                    ┌──────────────────┐
-                    │  Your Xiaomi     │
-                    │  + Absensi App   │
-                    └────────┬─────────┘
-                             │
-              ┌──────────────┴──────────────┐
-              ▼                              ▼
-    ┌──────────────────┐         ┌──────────────────────┐
-    │ LSPatch (No Root) │         │ LSPosed (Root via    │
-    │ Fast — No wait    │         │ Magisk) Stronger     │
-    │ 10 min setup      │         │ 7-14 day bootloader  │
-    │                   │         │ wait needed          │
-    │ May fail if app   │         │                      │
-    │ detects modified  │         │ 100% undetectable    │
-    │ APK signature     │         │ System-wide hooks    │
-    └────────┬──────────┘         └──────────┬───────────┘
-             │                               │
-             ▼                               ▼
-    Try this FIRST                   Do this while waiting
-```
+App ini jalan sebagai **mock location provider** + **modul LSPosed**.
+Begitu dibuka, spoofing langsung aktif otomatis di lokasi Kantor.
 
 ---
 
-## Method 1: LSPatch (No Root — Try Today)
+## Method 1: Root + LSPosed (100% Aman)
 
-LSPatch patches ONLY your attendance app — no root, no bootloader unlock.
-
-### Step 1: Extract your absensi APK
-
-```bash
-# Via ADB (requires one-time USB debug setup):
-adb shell pm list packages | grep -i "absensi\|kantorkita\|ipresens"
-adb shell pm path <nama.package>
-adb pull <path_from_above> absensi.apk
-```
-
-Or use APK Extractor from Play Store.
-
-### Step 2: Install LSPatch
-
-```bash
-# Download LSPatch manager:
-# https://github.com/LSPosed/LSPatch/releases
-adb install LSPatch-v*.apk
-```
-
-### Step 3: Patch the APK with our module
-
-```bash
-# Methods:
-# A) LSPatch GUI:
-#    Open LSPatch → Create → Pick APK → 
-#    Enable "Use module" → select TrackerLocation
-#    → Start patch
-
-# B) Via ADB (more reliable):
-#    Install LSPatch in "manager" mode first
-#    Then patch with:
-lspatch absensi.apk -m /path/to/tracker-location.apk
-```
-
-### Step 4: Install patched APK
-
-```bash
-adb install patched-absensi.apk
-```
-
-### Step 5: Start spoofing
+### Step 1: Buka kunci bootloader Xiaomi
 
 ```
-1. Open TrackerLocation app
-2. Toggle "Work" preset ON
-3. Tap START SPOOFING
-4. Open your absensi app → it receives clean location data
-   → isMock() returns false
-   → isFromMockProvider() returns false
-   → Settings read as "mock not enabled"
-```
-
-### ⚠️ LSPatch Limitations
-
-- **App signature changes** — some apps detect this via Play Integrity/SafetyNet
-- If your absensi app refuses to open after patching, LSPatch won't work for it
-- If it does work, you're done. No root needed.
-
----
-
-## Method 2: Root + LSPosed (100% Reliable)
-
-### Step 1: Start Xiaomi bootloader unlock NOW
-
-```bash
-# On Xiaomi:
-# 1. Settings → About → Tap MIUI version 7x → Developer mode
-# 2. Settings → Developer options → Mi Unlock Status → Add account
-# 3. Download Mi Unlock Tool from en.miui.com/unlock
-# 4. Wait 7-14 days (Xiaomi's requirement)
-# 5. Unlock bootloader with Mi Unlock Tool
+Settings → About → Tap MIUI version 7x → Developer mode
+Settings → Additional settings → Developer options → Mi Unlock Status
+→ Tambah akun → Download Mi Unlock Tool dari en.miui.com/unlock
+→ Tunggu 7-14 hari → Buka kunci dengan Mi Unlock Tool
 ```
 
 ### Step 2: Install Magisk
 
-```bash
-# While waiting, download:
-# - Magisk: https://github.com/topjohnwu/Magisk
-# - LSPosed: https://github.com/LSPosed/LSPosed
-# - Our module (already built)
-
-# After unlock:
-# 1. fastboot flash recovery twrp.img
-# 2. Reboot to recovery
-# 3. adb push Magisk-v*.zip /sdcard/
-# 4. Install Magisk from TWRP
-# 5. Reboot
-# 6. Install Magisk app → Verify root
+```
+fastboot flash recovery twrp.img
+Reboot ke recovery
+adb push Magisk-v*.zip /sdcard/
+Install dari TWRP → Reboot
+Install Magisk app → Verifikasi root
 ```
 
 ### Step 3: Install LSPosed
 
-```bash
-# In Magisk app:
-# 1. Modules → Install from storage → LSPosed-*.zip
-# 2. Reboot
-# 3. Open LSPosed app
+```
+Download LSPosed dari GitHub
+Magisk → Modules → Install from storage → pilih LSPosed-*.zip
+Reboot → Buka LSPosed app
 ```
 
-### Step 4: Enable our module
-
-```bash
-# In LSPosed:
-# 1. Modules → Enable "TrackerLocation"
-# 2. Scope:
-#    ☑ System Framework (ALWAYS needed)
-#    ☑ Your absensi app (per-app hooks)
-#    ☑ Google Play Services (optional)
-# 3. Reboot
-```
-
-### Step 5: Done
+### Step 4: Aktifkan modul
 
 ```
-- No Developer Options mock app selection needed
-- No ACCESS_MOCK_LOCATION permission
-- ALL apps see isMock() = false
-- Absensi app cannot detect anything
+LSPosed → Modules → Enable "TrackerLocation"
+Scope yang di centang:
+  ☑ System Framework (WAJIB)
+  ☑ App absensi kamu
+  ☑ Google Play Services (opsional)
+Reboot
+```
+
+### Step 5: Selesai
+
+```
+Buka TrackerLocation → spoofing langsung jalan otomatis
+Buka app absensi → lokasi kamu sudah di Kantor
+→ isMock() = false
+→ isFromMockProvider() = false
+→ Settings aman
 ```
 
 ---
 
-## Method 3: Smali Patcher (Alternative Root)
+## Method 2: LSPatch (Coba Dulu — No Root)
 
-If LSPosed causes issues on HyperOS:
+Patch APK absensi langsung, nggak perlu unlock bootloader.
 
-```bash
-# On Windows PC:
-# 1. Download Smali Patcher from XDA
-# 2. Connect phone with USB debugging
-# 3. Select "Mock location" fix
-# 4. Run → generates Magisk module
-# 5. Transfer .zip to phone → Install in Magisk
-# 6. Reboot
+### Step 1: Install LSPatch Manager
+
+File APK sudah ada di repo ini: **`LSPatch.apk`**
+Buka file manager → tap `LSPatch.apk` → Install
+
+### Step 2: Extract APK absensi
+
+Install APK Extractor dari Play Store → Extract APK app absensi kamu
+
+### Step 3: Patch dengan modul kita
+
+```
+Buka LSPatch → Create → pilih file APK absensi
+Centang "Use module" → pilih TrackerLocation
+→ Start patch → Install hasilnya
 ```
 
-Smali Patcher modifies `services.jar` at the smali level to permanently
-remove mock location detection. Works alongside or instead of LSPosed.
+### Step 4: Jalankan
+
+```
+Buka TrackerLocation → spoofing otomatis jalan di Kantor
+Buka app absensi → lokasi sudah termanipulasi
+```
+
+### Catatan
+
+- ✅ Bisa dicoba langsung tanpa root
+- ❌ Beberapa app deteksi perubahan signature APK
+- Kalau app absensi error setelah di-patch → berarti LSPatch nggak work, lanjut ke LSPosed
 
 ---
 
-## Detection: Testing if it works
+## Method 3: Smali Patcher (Alternatif Root)
 
-Download "Mock Detection Test" from Play Store.
-Or use this ADB command:
+Kalau LSPosed bermasalah di HyperOS:
 
-```bash
-adb shell settings put global development_settings_enabled 1
-adb shell settings secure mock_location 1
 ```
-
-If our module is active, the absensi app will see these as "disabled"
-because we intercept Settings reads and overwrite them.
+Di PC Windows:
+1. Download Smali Patcher dari XDA
+2. HP connect USB debugging
+3. Pilih "Mock location fix"
+4. Run → hasilnya Magisk module .zip
+5. Transfer ke HP → Install di Magisk
+6. Reboot
+```
 
 ---
 
-## Quick Decision Flow
+## Method 3: Mock Location Bawaan (Tanpa Root)
+
+Jalan sebagai mock location app standar — **mudah dideteksi** absensi.
 
 ```
-Can you wait 7-14 days for bootloader unlock?
-  ├── YES → Start unlock process now.
-  │         While waiting: try LSPatch.
-  │         When unlock finishes: Magisk + LSPosed.
-  │
-  └── NO  → Try LSPatch only.
-              ├── Works? → You're done.
-              └── Fails? → You must root.
+Settings → Developer options → Select mock location app
+→ Pilih TrackerLocation
+Buka app → spoofing otomatis jalan
 ```
+
+Rentan terdeteksi. Hanya untuk testing.
+
+---
+
+## Cara Kerja
+
+1. **Buka app** → spoofing otomatis aktif di koordinat Kantor
+2. **Ganti mode pergerakan** → spoofing menyesuaikan otomatis
+3. **Status "Aktif"** → lokasi sedang dimanipulasi
+4. **Tekan Berhenti** → spoofing mati

@@ -28,7 +28,7 @@
             android:value="true" />
         <meta-data
             android:name="xposeddescription"
-            android:value="System-wide undetectable GPS location spoofing with multiple provider injection and GNSS simulation." />
+            android:value="Spoofing lokasi GPS tidak terdeteksi dengan injeksi multi-provider dan simulasi GNSS." />
         <meta-data
             android:name="xposedminversion"
             android:value="89" />

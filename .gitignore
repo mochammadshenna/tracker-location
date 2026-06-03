@@ -1,5 +1,6 @@
-# Built application files
+# Built application files (except LSPatch manager)
 *.apk
+!LSPatch.apk
 *.ap_
 *.aab
 

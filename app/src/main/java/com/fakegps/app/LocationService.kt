@@ -50,7 +50,7 @@ class LocationService : Service() {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                CHANNEL_ID, "Mock Location Status",
+                CHANNEL_ID, "Status Lokasi Palsu",
                 NotificationManager.IMPORTANCE_LOW
             )
             notificationManager.createNotificationChannel(channel)
@@ -76,8 +76,8 @@ class LocationService : Service() {
         currentMovementState = null
 
         startForeground(NOTIF_ID, buildNotification(
-            "Initializing Location Injection...",
-            "Preparing multi-provider spoofing engine"
+            "Menginisialisasi Injeksi Lokasi...",
+            "Menyiapkan mesin spoofing multi-provider"
         ))
 
         if (!isMocking) {
@@ -199,15 +199,15 @@ class LocationService : Service() {
 
     private fun updateNotification(lat: Double, lng: Double, sats: Int, used: Int, mode: String) {
         val notif = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Location Spoofing Active")
+            .setContentTitle("Spoofing Lokasi Aktif")
             .setContentText("${String.format("%.6f", lat)}, ${String.format("%.6f", lng)} | $mode")
             .setStyle(
                 NotificationCompat.BigTextStyle()
                     .bigText("Lat: ${String.format("%.6f", lat)}\n" +
                              "Lng: ${String.format("%.6f", lng)}\n" +
                              "Mode: $mode\n" +
-                             "Satellites: $sats (${used} used)\n" +
-                             "Avg C/N0: ${String.format("%.1f", GnssStatusSimulator.getAverageCn0())} dB-Hz")
+                             "Satelit: $sats (${used} dipakai)\n" +
+                             "Rata-rata C/N0: ${String.format("%.1f", GnssStatusSimulator.getAverageCn0())} dB-Hz")
             )
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setOnlyAlertOnce(true)

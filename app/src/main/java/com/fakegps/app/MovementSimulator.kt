@@ -5,11 +5,11 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 enum class MovementMode(val label: String) {
-    STATIONARY("Stationary — No Movement"),
-    WALKING("Walking ~1.4 m/s"),
-    JOGGING("Jogging ~3 m/s"),
-    DRIVING("Driving ~10 m/s"),
-    RANDOM_WALK("Random Walk — Natural Jitter")
+    STATIONARY("Diam — Tanpa Pergerakan"),
+    WALKING("Jalan ~1.4 m/s"),
+    JOGGING("Lari ~3 m/s"),
+    DRIVING("Mobil ~10 m/s"),
+    RANDOM_WALK("Acak — Jitter Natural")
 }
 
 data class MovementState(
