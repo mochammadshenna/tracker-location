@@ -19,15 +19,15 @@ jobs:
                   java-version: "17"
                   distribution: "temurin"
 
-            # Memanggil mesin Gradle langsung dari server GitHub tanpa butuh file gradlew lokal
             - name: Setup Gradle
               uses: gradle/actions/setup-gradle@v3
+              with:
+                  gradle-version: "7.6.3"
 
-            # Mengompilasi dalam mode Debug agar APK otomatis ditandatangani dan siap instal
             - name: Build APK
-              run: gradle assembleDebug
+              run: gradle :app:assembleDebug
 
-            - name: Upload APK ke Artifacts
+            - name: Upload APK
               uses: actions/upload-artifact@v4
               with:
                   name: TrackerLocation-App
