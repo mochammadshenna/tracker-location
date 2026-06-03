@@ -24,6 +24,20 @@ jobs:
               with:
                   gradle-version: "7.6.3"
 
+            - name: Download Xposed API JAR
+              run: |
+                  mkdir -p app/libs
+                  curl -sL -o app/libs/api-82.jar \
+                    "https://api.xposed.info/repository/de/robv/android/xposed/api/82/api-82.jar" || {
+                      echo "Primary URL failed, trying fallback..."
+                      curl -sL -o app/libs/api-82.jar \
+                        "https://raw.githubusercontent.com/rovo89/XposedBridge/master/api/api-82.jar" || {
+                          echo "ERROR: Could not download Xposed API JAR"
+                          exit 1
+                      }
+                  }
+                  ls -la app/libs/
+
             - name: Generate Gradle Wrapper (if missing)
               run: |
                   if [ ! -f gradlew ]; then
