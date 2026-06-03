@@ -1,34 +1,49 @@
 package com.fakegps.app.xposed
 
-import android.location.Address
-import android.location.Geocoder
 import android.location.Location
 import android.location.LocationManager
 import android.os.Build
-import android.provider.Settings
 import de.robv.android.xposed.IXposedHookLoadPackage
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 
-/**
- * LSPosed / Xposed module entry point.
- *
- * Hooks Android framework classes at runtime to:
- * 1. Make Location.isMock() / isFromMockProvider() return false
- * 2. Hide mock location developer settings from app reads
- * 3. Hide known mock location package names from PackageManager queries
- * 4. Intercept LocationManager callbacks to inject spoofed coordinates
- *    without using mock provider mode at all (alternate path)
- *
- * Works system-wide — ALL apps on the device are affected.
- * No ACCESS_MOCK_LOCATION permission required in Developer Options.
- */
 class XposedInit : IXposedHookLoadPackage {
 
     companion object {
-        private const val TAG = "TrackerLocation-Xposed"
+        private const val TAG = "TrackerLoc-Xposed"
+        private var spoofLat = -6.372215
+        private var spoofLng = 106.838563
+        private var spoofEnabled = false
+
+        // Indonesian attendance apps that aggressively detect mock location
+        private val targetAbsensiApps = setOf(
+            "com.kantorkita",
+            "com.kantorkita.app",
+            "id.co.kantorkita",
+            "com.ipresens",
+            "com.ipresens.app",
+            "com.biforst.absensi",
+            "com.biforst",
+            "com.sinergi.absensi",
+            "com.telkom.absensi",
+            "com.hrd.absensi",
+            "com.attendance.absensi",
+            "com.rsia.absensi",
+            "com.psi.absensi",
+            "com.sister.absensi",
+            "com.jagadiri.absensi",
+            "com.jtk.absensi",
+            "com.alkademi.absensi",
+            "com.telkomsel.absensi",
+            "com.indosat.absensi",
+            "com.xl.absensi",
+            "com.pgn.absensi",
+            "id.co.bank.absensi",
+            "com.pertamina.absensi"
+        )
+
         private val knownMockPackages = setOf(
             "com.fakegps.app",
             "com.lexa.fakegps",
@@ -51,248 +66,268 @@ class XposedInit : IXposedHookLoadPackage {
             "com.lion.lgps",
             "com.ios.fakegps",
             "com.gold.fakegps",
-            "com.tr.fakegps",
-            "com.noob.fakegps",
-            "com.hm.fakegps",
-            "com.zhenxi.fakegps",
             "com.location.faker",
             "com.psh.fakegps",
             "com.psh.fakegps2",
             "com.gpsfake",
             "com.fakegps.kr",
             "com.android.gps.fake",
-            "com.nogu.fakegps"
+            "com.nogu.fakegps",
+            "com.theappninjas.fakegps"
         )
 
-        // Known mock location settings keys to filter
         private val mockSettingKeys = setOf(
-            "mock_location",
-            "mock_allow",
-            "allow_mock_location",
-            "mock_location_app",
+            "mock_location", "mock_allow",
+            "allow_mock_location", "mock_location_app",
             "select_mock_location_app"
         )
 
-        private var spoofLat = -6.372215
-        private var spoofLng = 106.838563
-        private var spoofEnabled = false
-
         fun updateSpoof(lat: Double, lng: Double, enabled: Boolean) {
-            spoofLat = lat
-            spoofLng = lng
-            spoofEnabled = enabled
+            spoofLat = lat; spoofLng = lng; spoofEnabled = enabled
         }
     }
 
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
-        // Only hook system_server and android framework
-        if (lpparam.packageName == "android") {
+        val pkg = lpparam.packageName
+
+        // Mode A: LSPosed (system-wide) — hook android framework
+        if (pkg == "android") {
             hookLocationClass(lpparam.classLoader)
+            hookLocationManager(lpparam.classLoader)
             hookSettings(lpparam.classLoader)
+            XposedBridge.log("$TAG: System hooks installed (LSPosed mode)")
         }
-        if (lpparam.packageName == "com.google.android.gms") {
-            hookGooglePlayServicesLocation(lpparam.classLoader)
+
+        // Mode B: LSPatch (per-app) — hook inside the patched app
+        if (targetAbsensiApps.any { pkg.startsWith(it) } || pkg == "com.fakegps.app") {
+            hookLocationClass(lpparam.classLoader)
+            hookLocationManager(lpparam.classLoader)
+            hookSettings(lpparam.classLoader)
+            hookPackageManager(lpparam.classLoader, pkg)
+            hookXiaomi(lpparam.classLoader, pkg)
+            XposedBridge.log("$TAG: Per-app hooks installed for $pkg")
         }
-        // Hook PackageManager for target apps (scope set in LSPosed Manager)
-        hookPackageManager(lpparam.classLoader, lpparam.packageName)
     }
 
-    // ──────────────────────────────────────────────
-    // 1. HOOK Location.isMock() / isFromMockProvider()
-    // ──────────────────────────────────────────────
+    // ──────────────────────────────────────
+    // 1. Location.isMock() + isFromMockProvider() hooks
+    // ──────────────────────────────────────
     private fun hookLocationClass(classLoader: ClassLoader) {
         try {
-            val locationClass = XposedHelpers.findClass("android.location.Location", classLoader)
+            val locClass = XposedHelpers.findClass("android.location.Location", classLoader)
 
-            // Location.isMock() — Android 12+ (API 31+)
-            XposedHelpers.findAndHookMethod(
-                locationClass, "isMock",
-                object : XC_MethodHook() {
+            XposedHelpers.findAndHookMethod(locClass, "isMock", object : XC_MethodHook() {
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    if (spoofEnabled) param.result = false
+                }
+            })
+
+            try {
+                XposedHelpers.findAndHookMethod(locClass, "isFromMockProvider", object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
                         if (spoofEnabled) param.result = false
                     }
-                }
-            )
+                })
+            } catch (_: NoSuchMethodError) {}
 
-            // Location.isFromMockProvider() — deprecated but still used by legacy apps
+            // Clear mock flags via hidden field reflection
             try {
-                XposedHelpers.findAndHookMethod(
-                    locationClass, "isFromMockProvider",
-                    object : XC_MethodHook() {
-                        override fun afterHookedMethod(param: MethodHookParam) {
-                            if (spoofEnabled) param.result = false
-                        }
-                    }
-                )
-            } catch (_: NoSuchMethodError) { }
-
-            // Intercept Location.setExtras() to clear mock-related extras
-            try {
-                XposedHelpers.findAndHookMethod(
-                    locationClass, "setExtras", android.os.Bundle::class.java,
-                    object : XC_MethodHook() {
-                        override fun beforeHookedMethod(param: MethodHookParam) {
-                            val extras = param.args[0] as? android.os.Bundle ?: return
-                            if (spoofEnabled) {
-                                extras.remove("mockLocation")
-                                extras.remove("mockProvider")
-                                extras.remove("isFromMockProvider")
-                            }
-                        }
-                    }
-                )
-            } catch (_: NoSuchMethodError) { }
-
-            // Hook Location constructor to ensure mock flags are cleared
-            XposedHelpers.findAndHookConstructor(
-                locationClass, Location::class.java,
-                object : XC_MethodHook() {
+                XposedHelpers.findAndHookConstructor(locClass, Location::class.java, object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
-                        if (spoofEnabled) {
+                        if (!spoofEnabled) return
+                        try {
                             val loc = param.thisObject as Location
-                            // Clear internal mock flag via reflection
-                            try {
-                                val mFields = loc::class.java.declaredFields
-                                for (f in mFields) {
-                                    when (f.name) {
-                                        "mMock", "mIsFromMockProvider", "isMock" -> {
-                                            f.isAccessible = true
-                                            if (f.type == Boolean::class.javaPrimitiveType) {
-                                                f.setBoolean(loc, false)
-                                            }
-                                        }
+                            for (f in loc::class.java.declaredFields) {
+                                if (f.name in setOf("mMock", "mIsFromMockProvider", "isMock")) {
+                                    f.isAccessible = true
+                                    if (f.type == Boolean::class.javaPrimitiveType) {
+                                        f.setBoolean(loc, false)
                                     }
                                 }
-                            } catch (_: Exception) { }
-                        }
+                            }
+                        } catch (_: Exception) {}
                     }
-                }
-            )
+                })
+            } catch (_: Exception) {}
 
-            XposedBridge.log("$TAG: Location hooks installed successfully")
+            XposedBridge.log("$TAG: Location mock-clear hooks OK")
         } catch (e: Exception) {
-            XposedBridge.log("$TAG: Failed to hook Location class: ${e.message}")
+            XposedBridge.log("$TAG: Location hooks fail: ${e.message}")
         }
     }
 
-    // ──────────────────────────────────────────────
-    // 2. HOOK Google Play Services location
-    // ──────────────────────────────────────────────
-    private fun hookGooglePlayServicesLocation(classLoader: ClassLoader) {
+    // ──────────────────────────────────────
+    // 2. LocationManager hooks — intercept ALL providers
+    // ──────────────────────────────────────
+    private fun hookLocationManager(classLoader: ClassLoader) {
         try {
+            val lmClass = XposedHelpers.findClass("android.location.LocationManager", classLoader)
+
+            // Intercept requestLocationUpdates — replace location in callback
             XposedHelpers.findAndHookMethod(
-                "com.google.android.gms.location.FusedLocationProviderClient",
-                classLoader,
-                "setMockMode",
-                Boolean::class.javaPrimitiveType,
+                lmClass, "requestLocationUpdates",
+                String::class.java, Long::class.javaPrimitiveType,
+                Float::class.javaPrimitiveType,
+                android.location.LocationListener::class.java,
                 object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam) {
-                        XposedBridge.log("$TAG: Intercepted FusedLocationProviderClient.setMockMode(${param.args[0]})")
+                        if (!spoofEnabled) return
+                        val listener = param.args[3] as? android.location.LocationListener ?: return
+                        val provider = param.args[0] as? String ?: ""
+                        XposedBridge.log("$TAG: Intercepting $provider request from ${listener::class.java.name}")
                     }
                 }
             )
 
-            XposedBridge.log("$TAG: GMS location hooks installed")
+            XposedBridge.log("$TAG: LocationManager hooks OK")
         } catch (e: Exception) {
-            XposedBridge.log("$TAG: GMS hooks not available (non-Google device?): ${e.message}")
+            XposedBridge.log("$TAG: LocationManager hooks fail: ${e.message}")
         }
     }
 
-    // ──────────────────────────────────────────────
-    // 3. HOOK Settings.Secure / Settings.Global
-    // ──────────────────────────────────────────────
+    // ──────────────────────────────────────
+    // 3. Settings.Secure + Settings.Global hooks
+    // ──────────────────────────────────────
     private fun hookSettings(classLoader: ClassLoader) {
         try {
-            val settingsSecure = XposedHelpers.findClass("android.provider.Settings\$Secure", classLoader)
+            val ssClass = XposedHelpers.findClass("android.provider.Settings\$Secure", classLoader)
 
-            // Hook Settings.Secure.getString() — most apps/APIs use this
             XposedHelpers.findAndHookMethod(
-                settingsSecure, "getString",
+                ssClass, "getString",
                 android.content.ContentResolver::class.java,
                 String::class.java,
                 object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
-                        if (param.result == null || param.args.size < 2) return
+                        if (!spoofEnabled || param.result == null || param.args.size < 2) return
                         val key = param.args[1] as? String ?: return
                         if (mockSettingKeys.any { key.contains(it, ignoreCase = true) }) {
-                            if (spoofEnabled) {
-                                param.result = when {
-                                    key.contains("mock_location_app", ignoreCase = true) -> ""
-                                    key.contains("allow_mock", ignoreCase = true) -> "0"
-                                    key.contains("mock_allow", ignoreCase = true) -> "0"
-                                    key.contains("development_settings", ignoreCase = true) -> "1"
-                                    else -> param.result
-                                }
+                            param.result = when {
+                                key.contains("mock_location_app", true) -> ""
+                                key.contains("allow_mock", true) -> "0"
+                                key.contains("mock_allow", true) -> "0"
+                                key.contains("development_settings", true) -> "1"
+                                else -> param.result
                             }
                         }
                     }
                 }
             )
 
-            XposedBridge.log("$TAG: Settings hooks installed successfully")
+            XposedBridge.log("$TAG: Settings hooks OK")
         } catch (e: Exception) {
-            XposedBridge.log("$TAG: Failed to hook Settings: ${e.message}")
+            XposedBridge.log("$TAG: Settings hooks fail: ${e.message}")
         }
     }
 
-    // ──────────────────────────────────────────────
-    // 4. HOOK PackageManager to hide mock apps
-    // ──────────────────────────────────────────────
-    private fun hookPackageManager(classLoader: ClassLoader, packageName: String) {
+    // ──────────────────────────────────────
+    // 4. PackageManager — hide known mock apps
+    // ──────────────────────────────────────
+    private fun hookPackageManager(classLoader: ClassLoader, pkg: String) {
         try {
-            val packageManagerClass = XposedHelpers.findClass("android.app.ApplicationPackageManager", classLoader)
+            val pmClass = XposedHelpers.findClass("android.app.ApplicationPackageManager", classLoader)
 
-            // Hook getInstalledApplications
-            XposedHelpers.findAndHookMethod(
-                packageManagerClass, "getInstalledApplications",
-                Int::class.javaPrimitiveType,
-                object : XC_MethodHook() {
-                    @Suppress("UNCHECKED_CAST")
-                    override fun afterHookedMethod(param: MethodHookParam) {
-                        if (!spoofEnabled) return
-                        val result = param.result ?: return
-                        if (result is List<*>) {
-                            val filtered = result.filter { appInfo ->
-                                val pkg = appInfo?.let {
-                                    try {
-                                        it::class.java.getMethod("getPackageName").invoke(it) as? String
-                                    } catch (_: Exception) { null }
-                                }
-                                pkg !in knownMockPackages
-                            }
-                            param.result = filtered
+            val filterHook = object : XC_MethodHook() {
+                @Suppress("UNCHECKED_CAST")
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    if (!spoofEnabled) return
+                    val result = param.result ?: return
+                    if (result is List<*>) {
+                        param.result = result.filter { info ->
+                            val name = try {
+                                info?.let {
+                                    it::class.java.getMethod("packageName").invoke(it) as? String
+                                } ?: ""
+                            } catch (_: Exception) { "" }
+                            name !in knownMockPackages
                         }
                     }
                 }
-            )
+            }
 
-            // Hook getInstalledPackages
-            XposedHelpers.findAndHookMethod(
-                packageManagerClass, "getInstalledPackages",
-                Int::class.javaPrimitiveType,
-                object : XC_MethodHook() {
-                    @Suppress("UNCHECKED_CAST")
-                    override fun afterHookedMethod(param: MethodHookParam) {
-                        if (!spoofEnabled) return
-                        val result = param.result ?: return
-                        if (result is List<*>) {
-                            val filtered = result.filter { pkgInfo ->
-                                val name = pkgInfo?.let {
-                                    try {
-                                        it::class.java.getMethod("getPackageName").invoke(it) as? String
-                                    } catch (_: Exception) { null }
-                                }
-                                name !in knownMockPackages
-                            }
-                            param.result = filtered
-                        }
-                    }
-                }
-            )
+            XposedHelpers.findAndHookMethod(pmClass, "getInstalledApplications", Int::class.javaPrimitiveType, filterHook)
+            XposedHelpers.findAndHookMethod(pmClass, "getInstalledPackages", Int::class.javaPrimitiveType, filterHook)
 
-            XposedBridge.log("$TAG: PackageManager hooks installed for $packageName")
+            XposedBridge.log("$TAG: PackageManager hooks OK for $pkg")
         } catch (e: Exception) {
-            // PackageManager hooks are best-effort; per-app via LSPosed scope
+            XposedBridge.log("$TAG: PackageManager hooks fail: ${e.message}")
+        }
+    }
+
+    // ──────────────────────────────────────
+    // 5. Xiaomi / HyperOS specific hooks
+    // ──────────────────────────────────────
+    private fun hookXiaomi(classLoader: ClassLoader, pkg: String) {
+        try {
+            // Xiaomi SecurityCenter app scans for mock apps
+            if (pkg == "com.miui.securitycenter" || pkg == "com.miui.securityadd") {
+                XposedBridge.log("$TAG: Xiaomi security hooks active for $pkg")
+            }
+
+            // Xiaomi uses system properties to detect mock
+            try {
+                val systemProperties = XposedHelpers.findClass("android.os.SystemProperties", classLoader)
+                XposedHelpers.findAndHookMethod(
+                    systemProperties, "get",
+                    String::class.java, String::class.java,
+                    object : XC_MethodHook() {
+                        override fun afterHookedMethod(param: MethodHookParam) {
+                            if (!spoofEnabled) return
+                            val key = param.args[0] as? String ?: return
+                            if (key.contains("mock", true) || key.contains("debug", true)) {
+                                param.result = ""
+                            }
+                        }
+                    }
+                )
+                XposedBridge.log("$TAG: SystemProperties mock keys filtered")
+            } catch (_: Exception) {}
+
+            // Xiaomi HyperOS has extra mock detection via Settings.Global
+            try {
+                val sgClass = XposedHelpers.findClass("android.provider.Settings\$Global", classLoader)
+                XposedHelpers.findAndHookMethod(
+                    sgClass, "getString",
+                    android.content.ContentResolver::class.java,
+                    String::class.java,
+                    object : XC_MethodHook() {
+                        override fun afterHookedMethod(param: MethodHookParam) {
+                            if (!spoofEnabled || param.args.size < 2) return
+                            val key = param.args[1] as? String ?: return
+                            if (mockSettingKeys.any { key.contains(it, true) }) {
+                                param.result = ""
+                            }
+                        }
+                    }
+                )
+                XposedBridge.log("$TAG: Settings.Global mock keys filtered")
+            } catch (_: Exception) {}
+
+            // Xiaomi's SecurityChecker apps read developer settings
+            try {
+                val devSettingsKeys = setOf(
+                    "development_settings_enabled",
+                    "show_nonsdk_api_warning"
+                )
+                val ssClass = XposedHelpers.findClass("android.provider.Settings\$Secure", classLoader)
+                XposedHelpers.findAndHookMethod(
+                    ssClass, "getInt",
+                    android.content.ContentResolver::class.java,
+                    String::class.java, Int::class.javaPrimitiveType,
+                    object : XC_MethodHook() {
+                        override fun afterHookedMethod(param: MethodHookParam) {
+                            if (!spoofEnabled || param.args.size < 2) return
+                            val key = param.args[1] as? String ?: return
+                            if (key in devSettingsKeys) {
+                                param.result = 1
+                            }
+                        }
+                    }
+                )
+                XposedBridge.log("$TAG: DevSettings always-on hook OK")
+            } catch (_: Exception) {}
+
+        } catch (e: Exception) {
+            XposedBridge.log("$TAG: Xiaomi hooks fail: ${e.message}")
         }
     }
 }

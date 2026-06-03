@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TrackerLocation</string>
+    <string name="start_spoofing">Start Spoofing</string>
+    <string name="stop">Stop</string>
+    <string name="status_active">Active — Spoofing Location</string>
+    <string name="status_inactive">Not Active</string>
+    <string name="movement_mode">Movement Mode</string>
+    <string name="custom_coordinates">Custom Coordinates</string>
+    <string name="preset_locations">Preset Locations</string>
+    <string name="latitude_hint">Latitude</string>
+    <string name="longitude_hint">Longitude</string>
+    <string name="xposed_active">LSPosed Module Active — System-wide hooks enabled</string>
+    <string name="xposed_inactive">LSPosed module installed but not active. Enable in LSPosed Manager</string>
+</resources>
