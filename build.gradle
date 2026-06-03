@@ -13,7 +13,8 @@ allprojects {
     repositories {
         google()
         mavenCentral()
-        // Xposed API JAR is fetched directly in CI (not available on standard repos)
-        // https://api.xposed.info/repository/de/robv/android/xposed/api/82/api-82.jar
+        // Mirrors for Xposed API (de.robv.android.xposed:api:82)
+        maven { url 'https://repository-cdn.liferay.com/nexus/content/repositories/gradle-plugins' }
+        maven { url 'https://rovo89.github.io/XposedBridge' }
     }
 }

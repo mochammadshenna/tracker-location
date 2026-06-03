@@ -40,7 +40,6 @@ dependencies {
     // OpenStreetMap (no API key needed)
     implementation 'org.osmdroid:osmdroid-android:6.1.18'
 
-    // Xposed/LSPosed API — local JAR (download via CI or manually)
-    // Official repo: https://api.xposed.info/repository/de/robv/android/xposed/api/82/api-82.jar
-    compileOnly files('libs/api-82.jar')
+    // Xposed/LSPosed API (compileOnly — provided by LSPosed/LSPatch at runtime)
+    compileOnly 'de.robv.android.xposed:api:82'
 }
