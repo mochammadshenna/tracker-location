@@ -71,7 +71,7 @@ class LocationService : Service() {
 
         val modeOrdinal = intent?.getIntExtra("MODE", MovementMode.STATIONARY.ordinal)
             ?: MovementMode.STATIONARY.ordinal
-        movementMode = MovementMode.entries.getOrElse(modeOrdinal) { MovementMode.STATIONARY }
+        movementMode = MovementMode.values().getOrElse(modeOrdinal) { MovementMode.STATIONARY }
 
         currentMovementState = null
 
@@ -119,10 +119,10 @@ class LocationService : Service() {
         )
         currentMovementState = movement
 
-        val lat = movement.lat
-        val lng = movement.lng
-        val speed = movement.speed
-        val bearing = movement.bearing
+        val moveLat = movement.lat
+        val moveLng = movement.lng
+        val moveSpeed = movement.speed
+        val moveBearing = movement.bearing
 
         val accuracyVariation = if (movementMode == MovementMode.STATIONARY) {
             targetAccuracy + (Math.random().toFloat() * 2f)
@@ -137,12 +137,12 @@ class LocationService : Service() {
 
         // Inject via FusedLocationProviderClient (GPS provider)
         val gpsLocation = Location(LocationManager.GPS_PROVIDER).apply {
-            latitude = lat
-            longitude = lng
+            latitude = moveLat
+            longitude = moveLng
             altitude = altitudeVariation
             accuracy = accuracyVariation
-            speed = speed
-            bearing = bearing
+            speed = moveSpeed
+            bearing = moveBearing
             time = now
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
                 elapsedRealtimeNanos = elapsedNanos
@@ -157,8 +157,8 @@ class LocationService : Service() {
         // Inject via LocationManager's TEST_PROVIDER (network fallback)
         try {
             val networkLocation = Location(LocationManager.NETWORK_PROVIDER).apply {
-                latitude = lat
-                longitude = lng
+                latitude = moveLat
+                longitude = moveLng
                 accuracy = accuracyVariation * 3f
                 time = now
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
@@ -182,10 +182,10 @@ class LocationService : Service() {
         val satCount = GnssStatusSimulator.getVisibleSatelliteCount()
         val usedCount = GnssStatusSimulator.getUsedInFixCount()
 
-        updateNotification(lat, lng, satCount, usedCount, movementMode.label)
+        updateNotification(moveLat, moveLng, satCount, usedCount, movementMode.label)
 
         if (tickCounter % 60 == 0) {
-            Log.d(TAG, "Injected: $lat, $lng | sats: $satCount/$usedCount | mode: ${movementMode.label}")
+            Log.d(TAG, "Injected: $moveLat, $moveLng | sats: $satCount/$usedCount | mode: ${movementMode.label}")
         }
     }
 

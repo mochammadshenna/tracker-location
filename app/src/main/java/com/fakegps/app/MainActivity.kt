@@ -121,7 +121,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupMovementSpinner() {
-        val modes = MovementMode.entries.map { it.label }
+        val modes = MovementMode.values().map { it.label }
         val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, modes)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinnerMovement.adapter = adapter
@@ -146,7 +146,7 @@ class MainActivity : AppCompatActivity() {
             selectedLng = lng
 
             val modeIndex = spinnerMovement.selectedItemPosition
-            val mode = MovementMode.entries.getOrElse(modeIndex) { MovementMode.STATIONARY }
+            val mode = MovementMode.values().getOrElse(modeIndex) { MovementMode.STATIONARY }
 
             // Update Xposed module if active
             if (isXposedModuleActive) {
